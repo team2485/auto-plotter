@@ -25,6 +25,7 @@ import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
 import org.team2485.AutoPath;
@@ -69,12 +70,20 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		JMenu fileMenu = new JMenu("File");
 		menu.add(fileMenu);
 		
+		JMenu helpMenu = new JMenu("Help");
+		menu.add(helpMenu);
+
+		JMenuItem controlsMenu = new JMenuItem("Controls");
+		controlsMenu.addActionListener((ActionEvent e) -> {
+				viewControls();
+		});
+		helpMenu.add(controlsMenu);
+		
 		JMenuItem openMenu = new JMenuItem("Open");
 		openMenu.addActionListener((ActionEvent e) -> {
 			try {
 				open();
 			} catch (IOException e1) {
-				// TODO Auto-generated catch block
 				e1.printStackTrace();
 			}
 		});
@@ -86,7 +95,6 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			try {
 				save(false);
 			} catch (IOException e1) {
-				// TODO Auto-generated catch block
 				e1.printStackTrace();
 			}
 		});
@@ -472,4 +480,11 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		}
 		repaint();
 	}
+
+	private void viewControls() {
+		JOptionPane.showMessageDialog(null, "Horizontal Arrow Keys - Rotate or Translate\n" + 
+											"Vertical Arrow Keys - Move control points or translate\n" + 
+											"U - switch whether rotating or translating\n (sorry this is incomplete)");
+	}
 }
+
