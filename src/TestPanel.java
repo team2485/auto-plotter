@@ -241,7 +241,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		} else if (keyCode == KeyEvent.VK_P) {
 			
 			for (int i = 0; i < spline.size(); i++) {
-				System.out.println("p = new Point(" + spline.get(i).x +", " + spline.get(i).y + ");");
+				System.out.println("p = new Point(" + spline.get(i).x + ", " + spline.get(i).y + ");");
 				System.out.println("p.inLen = " + spline.get(i).inLen + ";");
 				System.out.println("p.outLen = " + spline.get(i).outLen + ";");
 				System.out.println("p.angle = " + spline.get(i).angle + ";");
@@ -268,6 +268,8 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			p.outLen = 50.0;
 			p.angle = -63;
 			spline.add(p);
+		} else if (keyCode == KeyEvent.VK_E) {
+			isRed = !isRed;
 		}
 		
 		if (id < 0) {
@@ -404,7 +406,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			isRed = side.startsWith("R");
 			String first = reader.readLine();
 			String[] firstCoords = first.split(", ");
-			spline.add(new Point(Integer.parseInt(firstCoords[0]), Integer.parseInt(firstCoords[1])));
+			spline.add(new Point(Double.parseDouble(firstCoords[0]), Double.parseDouble(firstCoords[1])));
 			pairs = new ArrayList<>();
 			for (String s = reader.readLine(); s != null; s = reader.readLine()) {
 				s = s.split("\\(")[1];
@@ -430,8 +432,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		
 		if (file != null) {
 			BufferedWriter b = new BufferedWriter(new FileWriter(file));
-			// save
-			b.write(isRed ? "R\n" : "B\n");
+ 			b.write(isRed ? "R\n" : "B\n");
 			double x = spline.get(0).x, 
 					y = spline.get(0).y;
 			b.write(x + ", " + y + "\n");
@@ -482,9 +483,18 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 	}
 
 	private void viewControls() {
-		JOptionPane.showMessageDialog(null, "Horizontal Arrow Keys - Rotate or Translate\n" + 
+		JOptionPane.showMessageDialog(null, "Click on point when none selected - Select point\n" + 
+											"Click anywhere else when no point selected - Create new point\n" + 
+											"Click anywhere with point selected - Move selected point\n" + 
+											"Escape - Deselect Point\n" + 
+											"X - Remove selected point\n" + 
+											"Horizontal Arrow Keys - Rotate or Translate\n" + 
 											"Vertical Arrow Keys - Move control points or translate\n" + 
-											"U - switch whether rotating or translating\n (sorry this is incomplete)");
+											"U - switch whether rotating or translating\n" + 
+											"Space - switch whether adjusting in control point or out control point\n" + 
+											"F - flip orientation of robot\n" + 
+											"E - switch side of field\n"
+										);
 	}
 }
 
