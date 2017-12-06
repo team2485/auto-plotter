@@ -1,14 +1,22 @@
 import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.Stroke;
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.CubicCurve2D;
+import java.awt.geom.Path2D;
 import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
@@ -18,6 +26,8 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import javax.imageio.ImageIO;
 import javax.swing.JFileChooser;
@@ -27,9 +37,9 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 
 import org.team2485.AutoPath;
-import org.team2485.AutoPath.Pair;
 
 @SuppressWarnings("serial")
 public class TestPanel extends JPanel implements KeyListener, MouseListener {
@@ -42,12 +52,25 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 	private boolean isRotate = true;
 	private ArrayList<Point> spline;
 	private boolean hidden;
-	private static ArrayList<Pair> pairs = new ArrayList<>();
 	private File file = null;
 	private JFileChooser fc = new JFileChooser();
 	private boolean isRed = false;
+	private double robotWidth;
+	private boolean animating = false;
+	private double dist = 0;
+	private double speed = 100;
 
 	public TestPanel() throws IOException {
+		
+		new Timer().schedule(new TimerTask() {
+			@Override
+			public void run() {
+				dist += 0.005 * speed;
+				if (animating) {
+					frame.repaint();
+				}
+			}
+		}, 0, 5);
 
 		frame = new JFrame();
 		
@@ -56,7 +79,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		fieldR = ImageIO.read(classLoader.getResourceAsStream("fieldR.png"));
 		robot = ImageIO.read(classLoader.getResourceAsStream("robot.png"));
 		isRed = false;
-
+		robotWidth = robot.getWidth();
 		w = (isRed ? fieldR : fieldB).getWidth(null);
 		h = (isRed ? fieldR : fieldB).getHeight(null);
 
@@ -111,7 +134,13 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		});
 		fileMenu.add(saveAsMenu);
 		
+		JMenuItem exportMenu = new JMenuItem("Export to clipboard");
+		exportMenu.addActionListener((ActionEvent e) -> {
+			export();
+		});
+		fileMenu.add(exportMenu);
 		this.add(menu);
+
 
 
 		
@@ -124,46 +153,51 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 
 		addMouseListener(this);
 		frame.addKeyListener(this);
-
+		
 	}
 
 	@Override
 	protected void paintComponent(Graphics g) {
 		g.drawImage((isRed ? fieldR : fieldB), 0, 0, null);
-
+		
 		for (int i = 0; i < spline.size(); i++) {
 			
 			if (i != id && hidden) {
 				continue;
 			}
+			((Graphics2D) g).setStroke(new BasicStroke(1));
+			RenderingHints rh = new RenderingHints(
+		             RenderingHints.KEY_ANTIALIASING,
+		             RenderingHints.VALUE_ANTIALIAS_ON);
+			rh.add(new RenderingHints(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_NORMALIZE));
+			((Graphics2D) g).setRenderingHints(rh);
 
 			double x = spline.get(i).x, y = spline.get(i).y;
 			double angle = Math.toRadians(spline.get(i).angle);
 			AffineTransform trans = new AffineTransform();
-			trans.translate(robot.getWidth() / 2, robot.getHeight() / 2);
-			trans.rotate(Math.PI - angle, robot.getWidth() / 2, robot.getHeight() / 2);
+			trans.translate(robot.getWidth() / 2.0, robot.getHeight() / 2.0);
+			trans.rotate(Math.PI - angle, robot.getWidth() / 2.0, robot.getHeight() / 2.0);
 			AffineTransformOp op = new AffineTransformOp(trans, AffineTransformOp.TYPE_BILINEAR);
 			BufferedImage dest = op.filter(robot, null);
 			
-			Composite original = ((Graphics2D) g).getComposite();
-			Composite translucent = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.5f);
-			((Graphics2D) g).setComposite(translucent);
-			g.drawImage(dest, (int) x - robot.getHeight(), (int) y - robot.getHeight(), null);
-			((Graphics2D) g).setComposite(original);
-
-
-			if (i == id) {
-				g.setColor(Color.BLUE);
-			} else {
-				g.setColor(Color.PINK);
+			if (!animating) {
+				Composite original = ((Graphics2D) g).getComposite();
+				Composite translucent = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (i == id ? 0.75f : 0.25f));
+				((Graphics2D) g).setComposite(translucent);
+				g.drawImage(dest, (int) Math.round(x - robot.getWidth()), (int)Math.round(y - robot.getHeight()), null);
+				((Graphics2D) g).setComposite(original);
 			}
+
+			
+			g.setColor(Color.GRAY);
+
 			g.fillOval((int) (x - 5), (int) (y - 5), 10, 10);
 
 
 			if (i > 0) {
 				double len = spline.get(i).inLen;
 				double x2 = x + len * Math.sin(angle), y2 = y + len * Math.cos(angle);
-				g.setColor(Color.RED);
+				g.setColor(Color.BLUE);
 				g.drawLine((int) x, (int) y, (int) x2, (int) y2);
 				g.fillOval((int) (x2 - 2), (int) (y2 - 2), 4, 4);
 			}
@@ -177,23 +211,65 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			}
 		}
 
-		g.setColor(Color.MAGENTA);
+		g.setColor(Color.RED);
+		double tempDist = dist;
+		Path2D curve = new Path2D.Double();
+		((Graphics2D) g).setStroke(new BasicStroke(2));
+		Stroke str = new BasicStroke((float)robotWidth);
+
 		for (int i = 0; i < spline.size() - 1; i++) {
 			if (hidden && i != id && i + 1 != id) {
 				continue;
 			}
-			AutoPath.Pair[] p = AutoPath.getPointsForBezier(200, 
-					new AutoPath.Pair(spline.get(i).x, spline.get(i).y),
-					new AutoPath.Pair(spline.get(i).getOut().x, spline.get(i).getOut().y), 
-					new AutoPath.Pair(spline.get(i + 1).getIn().x, spline.get(i + 1).getIn().y),
-					new AutoPath.Pair(spline.get(i + 1).x, spline.get(i + 1).y));
+			
+			CubicCurve2D temp = new CubicCurve2D.Double(spline.get(i).x, spline.get(i).y, 
+					spline.get(i).getOut().x, spline.get(i).getOut().y, 
+					spline.get(i + 1).getIn().x, spline.get(i + 1).getIn().y, 
+					spline.get(i + 1).x, spline.get(i + 1).y);
+			
+			if (i > 0 && spline.get(i).outLen * spline.get(i).inLen > 0) { // turn around
+				((Graphics2D) g).draw(curve);
+				((Graphics2D) g).draw(str.createStrokedShape(curve));
+				curve = new Path2D.Double();
+			} 
+			curve.append(temp, true);
 
-			int[] x = new int[p.length], y = new int[p.length];
-			for (int j = 0; j < p.length; j++) {
-				x[j] = (int) p[j].getX();
-				y[j] = (int) p[j].getY();
+			
+			
+			if(animating) {
+				AutoPath.Pair[] p = AutoPath.getPointsForBezier(200, 
+						new AutoPath.Pair(spline.get(i).x, spline.get(i).y),
+						new AutoPath.Pair(spline.get(i).getOut().x, spline.get(i).getOut().y), 
+						new AutoPath.Pair(spline.get(i + 1).getIn().x, spline.get(i + 1).getIn().y),
+						new AutoPath.Pair(spline.get(i + 1).x, spline.get(i + 1).y));
+				AutoPath path = new AutoPath(p);
+				boolean inverted = spline.get(i).outLen < 0;
+				if (tempDist < path.getPathLength() && tempDist >= 0) {
+					AutoPath.Point point = path.getPointAtDist(tempDist);
+					double x = point.x;
+					double y = point.y;
+					double angle = point.heading + (inverted ? Math.PI : 0);
+					AffineTransform trans = new AffineTransform();
+					trans.translate(robot.getWidth() * .5, robot.getHeight() *.5);
+					trans.rotate(Math.PI - angle, robot.getWidth() *.5, robot.getHeight() *.5);
+					AffineTransformOp op = new AffineTransformOp(trans, AffineTransformOp.TYPE_BILINEAR);
+					BufferedImage dest = op.filter(robot, null);
+
+					Composite original = ((Graphics2D) g).getComposite();
+					((Graphics2D) g).setComposite(original);
+					g.drawImage(dest, (int) x - robot.getWidth(), (int) y - robot.getHeight(), null);
+				}
+				tempDist -= path.getPathLength();
 			}
-			g.drawPolyline(x, y, p.length);
+			
+		}
+		
+		((Graphics2D) g).draw(curve);
+		((Graphics2D) g).draw(str.createStrokedShape(curve));
+		
+
+		if (tempDist > 0) {
+			animating = false;
 		}
 
 	}
@@ -234,42 +310,14 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 
 	@Override
 	public void keyPressed(KeyEvent e) {
-		Point p;
 		int keyCode = e.getKeyCode();
 		if (keyCode == KeyEvent.VK_U) {
 			isRotate = !isRotate;
-		} else if (keyCode == KeyEvent.VK_P) {
-			
-			for (int i = 0; i < spline.size(); i++) {
-				System.out.println("p = new Point(" + spline.get(i).x + ", " + spline.get(i).y + ");");
-				System.out.println("p.inLen = " + spline.get(i).inLen + ";");
-				System.out.println("p.outLen = " + spline.get(i).outLen + ";");
-				System.out.println("p.angle = " + spline.get(i).angle + ";");
-				System.out.println("spline.add(p);");
-			}
-		} else if (keyCode == KeyEvent.VK_L) {
-			loadFromPairs();
-		} else if (keyCode == KeyEvent.VK_M) {
-			while (spline.size() > 1) {
-				spline.remove(1);
-			}
-			p = new Point(169.0, 469.0);
-			p.inLen = -50.0;
-			p.outLen = 150.0;
-			p.angle = 180.0;
-			spline.add(p);
-			p = new Point(309.0, 239.0);
-			p.inLen = 60;
-			p.outLen = 180;
-			p.angle = -56;
-			spline.add(p);
-			p = new Point(242.0, 422.0);
-			p.inLen = 106;
-			p.outLen = 50.0;
-			p.angle = -63;
-			spline.add(p);
 		} else if (keyCode == KeyEvent.VK_E) {
 			isRed = !isRed;
+		} else if (keyCode == KeyEvent.VK_A) {
+			animating = true;
+			dist = 0;
 		}
 		
 		if (id < 0) {
@@ -315,14 +363,16 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			hidden = !hidden;
 		} else if (keyCode == KeyEvent.VK_SPACE) {
 			isInLen = !isInLen;
-		} else if (keyCode == KeyEvent.VK_F) { // flip
+		} else if (keyCode == KeyEvent.VK_TAB) {
+			id++; 
+			if (id >= spline.size()) {
+				id -= spline.size();
+			}
+		} else if (keyCode == KeyEvent.VK_F) {
 			spline.get(id).inLen *= -1;
 			spline.get(id).outLen *= -1;
 			spline.get(id).angle += 180;
 
-		} else if (keyCode == KeyEvent.VK_X) {
-			spline.remove(id);
-			id = -1;
 		} else if (keyCode == KeyEvent.VK_ESCAPE) {
 			id = -1;
 		}
@@ -332,7 +382,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 	}
 
 	private String output(double x, double y) {
-		return "new Pair(" + Math.round(2 * x) / 2.0 + ", " + Math.round(2 * y) / 2.0 + "),\n";
+		return "new Pair(" + Math.round(x) / 2.0 + ", " + Math.round(y) / 2.0 + "),\n";
 		
 	}
 
@@ -343,10 +393,24 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 	}
 
 	@Override
-	public void mouseClicked(MouseEvent e) {
-		if (id < 0) {
+	public void mousePressed(MouseEvent e) {
+		if (e.isPopupTrigger()) {
+			System.out.println("thn");
+			JPopupMenu menu = new JPopupMenu();
+	        JMenuItem menuItem = new JMenuItem(id < 0 ? "New" : "Delete");
+	        menuItem.addActionListener((ActionEvent ev) -> {
+	        	if (id < 0) {
+	        		newPoint(e.getX(), e.getY());
+	        	} else { 
+	        		delete(id);
+	        	}
+
+			});
+	        menu.add(menuItem);
+	        menu.show(e.getComponent(), e.getX(), e.getY());
+		} else if (id < 0) {
 			for (int i = 0; i < spline.size(); i++) {
-				if (Math.hypot(spline.get(i).x - e.getX(), spline.get(i).y - e.getY()) < 5) {
+				if (Math.hypot(spline.get(i).x - e.getX(), spline.get(i).y - e.getY()) < robotWidth / 2) {
 					id = i;
 					if (id == 0) {
 						isInLen = false;
@@ -356,28 +420,31 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 					break;
 				}
 			}
-			if (id < 0) {
-				int x = e.getX();
-				int y = e.getY();
-				spline.add(new Point(x, y));
-			}
 		} else {
 			spline.get(id).x = e.getX();
 			spline.get(id).y = e.getY();
 		}
-
 		repaint();
 	}
 
 	@Override
-	public void mousePressed(MouseEvent e) {
-		// TODO Auto-generated method stub
-
-	}
-
-	@Override
 	public void mouseReleased(MouseEvent e) {
-		// TODO Auto-generated method stub
+		if (e.isPopupTrigger()) {
+			System.out.println("thn");
+			JPopupMenu menu = new JPopupMenu();
+	        JMenuItem menuItem = new JMenuItem(id < 0 ? "New" : "Delete");
+	        menuItem.addActionListener((ActionEvent ev) -> {
+	        	if (id < 0) {
+	        		newPoint(e.getX(), e.getY());
+	        	} else { 
+	        		delete(id);
+	        	}
+
+			});
+	        menu.add(menuItem);
+	        menu.show(e.getComponent(), e.getX(), e.getY());
+		} 
+		
 
 	}
 
@@ -404,17 +471,14 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			BufferedReader reader = new BufferedReader(new FileReader(file));
 			String side = reader.readLine();
 			isRed = side.startsWith("R");
-			String first = reader.readLine();
-			String[] firstCoords = first.split(", ");
-			spline.add(new Point(Double.parseDouble(firstCoords[0]), Double.parseDouble(firstCoords[1])));
-			pairs = new ArrayList<>();
 			for (String s = reader.readLine(); s != null; s = reader.readLine()) {
-				s = s.split("\\(")[1];
-				s = s.split("\\)")[0];
 				String[] coords = s.split(", ");
-				pairs.add(new Pair(Double.parseDouble(coords[0]), Double.parseDouble(coords[1])));
+				Point p = new Point(Double.parseDouble(coords[0]), Double.parseDouble(coords[1]));
+				p.inLen = Double.parseDouble(coords[2]);
+				p.outLen = Double.parseDouble(coords[3]);
+				p.angle = Double.parseDouble(coords[4]);
+				spline.add(p);
 			}
-			loadFromPairs();
 			reader.close();
 		}
 	}
@@ -433,68 +497,72 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		if (file != null) {
 			BufferedWriter b = new BufferedWriter(new FileWriter(file));
  			b.write(isRed ? "R\n" : "B\n");
-			double x = spline.get(0).x, 
-					y = spline.get(0).y;
-			b.write(x + ", " + y + "\n");
+			
 
 			for (int i = 0; i < spline.size(); i++) {
-				if (i > 0) 
-					b.write(output((spline.get(i).getIn().x - x) / 2, (y - spline.get(i).getIn().y) / 2));
-				b.write(output((spline.get(i).x - x) / 2, (y - spline.get(i).y) / 2));
-				if (i < spline.size() - 1)
-					b.write(output((spline.get(i).getOut().x - x) / 2,  (y - spline.get(i).getOut().y) / 2));
+				b.write(spline.get(i).x + ", " + spline.get(i).y + ", " +  spline.get(i).inLen + ", " + spline.get(i).outLen + ", "  + spline.get(i).angle);
 
 			}
 			b.close();
 		}
 	}
 	
-	private void loadFromPairs() {
-		while (spline.size() > 1) {
-			spline.remove(1);
+	private void export() {
+		String s = "";
+
+		for (int i = 0; i < spline.size(); i++) {
+			double x = spline.get(0).x, 
+					y = spline.get(0).y;
+			if (i > 0) 
+				s += output(spline.get(i).getIn().x - x, y - spline.get(i).getIn().y);
+			s += output(spline.get(i).x - x, y - spline.get(i).y);
+			if (i < spline.size() - 1)
+				s += output(spline.get(i).getOut().x - x,  y - spline.get(i).getOut().y);
+			
+
 		}
-		for (int i = 0; i <= pairs.size() / 3; i++) {
-			if (i == 0) {
-				
-				double dx = pairs.get(1).getX() - pairs.get(0).getX();
-				double dy = - pairs.get(1).getY() + pairs.get(0).getY();
-				spline.get(0).angle = Math.toDegrees(Math.atan2(dx, dy));
-				spline.get(0).outLen = 2 *  Math.sqrt(dx * dx + dy * dy);
-				
-			} else {
-				
-				spline.add(new Point((pairs.get(3 * i).getX() - pairs.get(0).getX()) * 2 + spline.get(0).x, 
-						(pairs.get(0).getY() - pairs.get(3 * i).getY()) * 2 + spline.get(0).y));
-				
-				double dx1 = pairs.get(3 * i - 1).getX() - pairs.get(3 * i).getX(),
-						dy1 = - pairs.get(3 * i - 1).getY() + pairs.get(3 * i).getY();
-				spline.get(i).angle = Math.toDegrees(Math.atan2(dx1, dy1));
-				spline.get(i).inLen = 2 * Math.sqrt(dx1 * dx1 + dy1 * dy1);
-				
-				if (i < pairs.size() / 3) {
-					double dx2 = pairs.get(3 * i + 1).getX() - pairs.get(3 * i).getX(),
-							dy2 = - pairs.get(3 * i + 1).getY() + pairs.get(3 * i).getY();
-					spline.get(i).outLen = 4 * (dx1 * dx2 + dy1 * dy2) / spline.get(i).inLen;
-				}
-				
-			}
-		}
+		System.out.println(s);
+
+		StringSelection selection = new StringSelection(s);
+	    Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+	    clipboard.setContents(selection, selection);
+	    
+	    
+	}
+
+	private void newPoint(int x, int y) {
+		spline.add(new Point(x, y));
+		repaint();
+	}
+	
+	private void delete(int id) {
+		spline.remove(id);
+		this.id = -1;
 		repaint();
 	}
 
+
 	private void viewControls() {
-		JOptionPane.showMessageDialog(null, "Click on point when none selected - Select point\n" + 
-											"Click anywhere else when no point selected - Create new point\n" + 
-											"Click anywhere with point selected - Move selected point\n" + 
-											"Escape - Deselect Point\n" + 
-											"X - Remove selected point\n" + 
+		JOptionPane.showMessageDialog(null, "Click on image of robot to select it\n" + 
+											"Click anywhere with robot selected to move it\n" + 
+											"Escape - Deselect\n" + 
+											"Tab - select next point\n" +
+											"Right click - Add / Remove point\n" + 
 											"Horizontal Arrow Keys - Rotate or Translate\n" + 
 											"Vertical Arrow Keys - Move control points or translate\n" + 
 											"U - switch whether rotating or translating\n" + 
 											"Space - switch whether adjusting in control point or out control point\n" + 
 											"F - flip orientation of robot\n" + 
-											"E - switch side of field\n"
+											"E - switch side of field\n" + 
+											"A - animate path\n" +
+											"H - hide robot images (only show path)\n"
 										);
+	}
+
+	@Override
+	public void mouseClicked(MouseEvent e) {
+		// TODO Auto-generated method stub
+		
 	}
 }
 

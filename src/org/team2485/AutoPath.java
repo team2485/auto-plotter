@@ -9,10 +9,10 @@ import java.util.Arrays;
  */
 
 public class AutoPath {
-	private class Point {
-		private double x, y; 
-		private double heading, curvature;
-		private double arcLength;
+	public class Point {
+		public double x, y; 
+		public double heading, curvature;
+		public double arcLength;
 		private Point(Pair p) {
 			this.x = p.getX();
 			this.y = p.getY();
@@ -96,7 +96,7 @@ public class AutoPath {
 		points[len - 1].curvature = points[len - 2].curvature = points[len - 3].curvature;
 	}
 	
-	private Point getPointAtDist(double dist) {
+	public Point getPointAtDist(double dist) {
 		for (int i = 0; i < points.length; i++) {
 			if (dist < points[i].arcLength) {
 				return points[i];
