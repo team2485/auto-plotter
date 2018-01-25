@@ -40,11 +40,13 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 
 import org.team2485.AutoPath;
+import org.team2485.AutoPath.Pair;
 
 @SuppressWarnings("serial")
 public class TestPanel extends JPanel implements KeyListener, MouseListener {
 	
 	private JFrame frame;
+	private final boolean usingBeziers = false;
 	private BufferedImage robot, fieldB, fieldR;
 	private int w, h;
 	private int id = -1;
@@ -75,8 +77,8 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		frame = new JFrame();
 		
 		ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-		fieldB = ImageIO.read(classLoader.getResourceAsStream("fieldB.png"));
-		fieldR = ImageIO.read(classLoader.getResourceAsStream("fieldR.png"));
+		fieldB = ImageIO.read(classLoader.getResourceAsStream("drawing.png"));
+		fieldR = ImageIO.read(classLoader.getResourceAsStream("drawing-color.png"));
 		robot = ImageIO.read(classLoader.getResourceAsStream("robot.png"));
 		isRed = false;
 		robotWidth = robot.getWidth();
@@ -149,8 +151,13 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		frame.repaint();
 
 		spline = new ArrayList<>();
-		spline.add(new Point(140 + 27, 500));
+		spline.add(new Point(100, 100));
+		spline.add(new Point(300, 100));
+		spline.add(new Point(300, 300));
+		spline.get(1).dMax = 100;
 
+		
+		
 		addMouseListener(this);
 		frame.addKeyListener(this);
 		
@@ -166,35 +173,43 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 				continue;
 			}
 			((Graphics2D) g).setStroke(new BasicStroke(1));
-			RenderingHints rh = new RenderingHints(
-		             RenderingHints.KEY_ANTIALIASING,
-		             RenderingHints.VALUE_ANTIALIAS_ON);
+			RenderingHints rh = new RenderingHints(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 			rh.add(new RenderingHints(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_NORMALIZE));
 			((Graphics2D) g).setRenderingHints(rh);
 
 			double x = spline.get(i).x, y = spline.get(i).y;
-			double angle = Math.toRadians(spline.get(i).angle);
+			double angle = 0;
+			if (usingBeziers) {
+				angle = Math.toRadians(spline.get(i).angle);
+			} else if (i == 0 ){
+				angle = Math.atan2(spline.get(1).x - spline.get(0).x, spline.get(1).y - spline.get(0).y);
+			} else if (i == spline.size() - 1) {
+				angle = Math.atan2(spline.get(i).x - spline.get(i-1).x, spline.get(i).y - spline.get(i-1).y);
+			}
 			AffineTransform trans = new AffineTransform();
 			trans.translate(robot.getWidth() / 2.0, robot.getHeight() / 2.0);
 			trans.rotate(Math.PI - angle, robot.getWidth() / 2.0, robot.getHeight() / 2.0);
 			AffineTransformOp op = new AffineTransformOp(trans, AffineTransformOp.TYPE_BILINEAR);
 			BufferedImage dest = op.filter(robot, null);
 			
-			if (!animating) {
+			if (!animating && (usingBeziers || i == 0 || i == spline.size() - 1)) {
 				Composite original = ((Graphics2D) g).getComposite();
 				Composite translucent = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (i == id ? 0.75f : 0.25f));
 				((Graphics2D) g).setComposite(translucent);
 				g.drawImage(dest, (int) Math.round(x - robot.getWidth()), (int)Math.round(y - robot.getHeight()), null);
 				((Graphics2D) g).setComposite(original);
-			}
+			} 
 
-			
-			g.setColor(Color.GRAY);
+			if (id == i) {
+				g.setColor(Color.BLACK);
+			} else {
+				g.setColor(Color.GRAY);
+			}
 
 			g.fillOval((int) (x - 5), (int) (y - 5), 10, 10);
 
 
-			if (i > 0) {
+			if (i > 0 && usingBeziers) {
 				double len = spline.get(i).inLen;
 				double x2 = x + len * Math.sin(angle), y2 = y + len * Math.cos(angle);
 				g.setColor(Color.BLUE);
@@ -202,7 +217,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 				g.fillOval((int) (x2 - 2), (int) (y2 - 2), 4, 4);
 			}
 
-			if (i < spline.size() - 1) {
+			if (i < spline.size() - 1 && usingBeziers) {
 				double len = spline.get(i).outLen;
 				double x2 = x + len * Math.sin(angle), y2 = y + len * Math.cos(angle);
 				g.setColor(Color.GREEN);
@@ -211,67 +226,133 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			}
 		}
 
-		g.setColor(Color.RED);
 		double tempDist = dist;
 		Path2D curve = new Path2D.Double();
 		((Graphics2D) g).setStroke(new BasicStroke(2));
-		Stroke str = new BasicStroke((float)robotWidth);
+		Stroke str = new BasicStroke((float) robotWidth);
 
-		for (int i = 0; i < spline.size() - 1; i++) {
-			if (hidden && i != id && i + 1 != id) {
-				continue;
-			}
-			
-			CubicCurve2D temp = new CubicCurve2D.Double(spline.get(i).x, spline.get(i).y, 
-					spline.get(i).getOut().x, spline.get(i).getOut().y, 
-					spline.get(i + 1).getIn().x, spline.get(i + 1).getIn().y, 
-					spline.get(i + 1).x, spline.get(i + 1).y);
-			
-			if (i > 0 && spline.get(i).outLen * spline.get(i).inLen > 0) { // turn around
-				((Graphics2D) g).draw(curve);
-				((Graphics2D) g).draw(str.createStrokedShape(curve));
-				curve = new Path2D.Double();
-			} 
-			curve.append(temp, true);
+		if (usingBeziers) {
+			g.setColor(Color.RED);
 
-			
-			
-			if(animating) {
-				AutoPath.Pair[] p = AutoPath.getPointsForBezier(200, 
-						new AutoPath.Pair(spline.get(i).x, spline.get(i).y),
-						new AutoPath.Pair(spline.get(i).getOut().x, spline.get(i).getOut().y), 
-						new AutoPath.Pair(spline.get(i + 1).getIn().x, spline.get(i + 1).getIn().y),
-						new AutoPath.Pair(spline.get(i + 1).x, spline.get(i + 1).y));
-				AutoPath path = new AutoPath(p);
-				boolean inverted = spline.get(i).outLen < 0;
-				if (tempDist < path.getPathLength() && tempDist >= 0) {
-					AutoPath.Point point = path.getPointAtDist(tempDist);
-					double x = point.x;
-					double y = point.y;
-					double angle = point.heading + (inverted ? Math.PI : 0);
-					AffineTransform trans = new AffineTransform();
-					trans.translate(robot.getWidth() * .5, robot.getHeight() *.5);
-					trans.rotate(Math.PI - angle, robot.getWidth() *.5, robot.getHeight() *.5);
-					AffineTransformOp op = new AffineTransformOp(trans, AffineTransformOp.TYPE_BILINEAR);
-					BufferedImage dest = op.filter(robot, null);
-
-					Composite original = ((Graphics2D) g).getComposite();
-					((Graphics2D) g).setComposite(original);
-					g.drawImage(dest, (int) x - robot.getWidth(), (int) y - robot.getHeight(), null);
+			for (int i = 0; i < spline.size() - 1; i++) {
+				if (hidden && i != id && i + 1 != id) {
+					continue;
 				}
-				tempDist -= path.getPathLength();
+				
+				CubicCurve2D temp = new CubicCurve2D.Double(spline.get(i).x, spline.get(i).y, 
+						spline.get(i).getOut().x, spline.get(i).getOut().y, 
+						spline.get(i + 1).getIn().x, spline.get(i + 1).getIn().y, 
+						spline.get(i + 1).x, spline.get(i + 1).y);
+				
+				if (i > 0 && spline.get(i).outLen * spline.get(i).inLen > 0) { // turn around
+					((Graphics2D) g).draw(curve);
+					((Graphics2D) g).draw(str.createStrokedShape(curve));
+					curve = new Path2D.Double();
+				} 
+				curve.append(temp, true);
+
+				
+				
+				if(animating) {
+					AutoPath.Pair[] p = AutoPath.getPointsForBezier(200, 
+							new AutoPath.Pair(spline.get(i).x, spline.get(i).y),
+							new AutoPath.Pair(spline.get(i).getOut().x, spline.get(i).getOut().y), 
+							new AutoPath.Pair(spline.get(i + 1).getIn().x, spline.get(i + 1).getIn().y),
+							new AutoPath.Pair(spline.get(i + 1).x, spline.get(i + 1).y));
+					AutoPath path = new AutoPath(p);
+					boolean inverted = spline.get(i).outLen < 0;
+					if (tempDist < path.getPathLength() && tempDist >= 0) {
+						AutoPath.Point point = path.getPointAtDist(tempDist);
+						double x = point.x;
+						double y = point.y;
+						double angle = point.heading + (inverted ? Math.PI : 0);
+						AffineTransform trans = new AffineTransform();
+						trans.translate(robot.getWidth() * .5, robot.getHeight() *.5);
+						trans.rotate(Math.PI - angle, robot.getWidth() *.5, robot.getHeight() *.5);
+						AffineTransformOp op = new AffineTransformOp(trans, AffineTransformOp.TYPE_BILINEAR);
+						BufferedImage dest = op.filter(robot, null);
+
+						Composite original = ((Graphics2D) g).getComposite();
+						((Graphics2D) g).setComposite(original);
+						g.drawImage(dest, (int) x - robot.getWidth(), (int) y - robot.getHeight(), null);
+					}
+					tempDist -= path.getPathLength();
+				}
+				
 			}
+			((Graphics2D) g).draw(curve);
+			((Graphics2D) g).draw(str.createStrokedShape(curve));
+		} else {
 			
+			g.setColor(Color.RED);
+			double percent = 1 - spline.get(1).dMax / Math.hypot(spline.get(1).x - spline.get(0).x, 
+					spline.get(1).y - spline.get(0).y);
+			double xEnd = (1 - percent) * spline.get(0).x + percent * spline.get(1).x;
+			double yEnd = (1 - percent) * spline.get(0).y + percent * spline.get(1).y;
+			((Graphics2D) g).drawLine((int) spline.get(0).x, (int) spline.get(0).y, (int) xEnd, (int) yEnd);
+			
+			
+			Stroke dashed = new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{9}, 0);
+	        ((Graphics2D) g).setStroke(dashed);
+			g.setColor(Color.GREEN);
+			((Graphics2D) g).drawLine((int) xEnd, (int) yEnd, (int) spline.get(1).x, (int) spline.get(1).y);
+
+			for (int i = 1; i < spline.size() - 1; i++) {
+				
+				((Graphics2D) g).setStroke(new BasicStroke(1));
+				g.setColor(Color.RED);
+
+				double lastX = spline.get(i-1).x, lastY = spline.get(i-1).y;
+				double thisX = spline.get(i).x, thisY = spline.get(i).y;
+				double nextX = spline.get(i+1).x, nextY = spline.get(i+1).y;
+
+				Pair[] pairs = AutoPath.getPointsForClothoid(10000, new Pair(thisX, thisY), 
+						Math.atan2(thisY - lastY, thisX - lastX), Math.atan2(nextY - thisY, nextX - thisX), 
+						spline.get(i).dMax);
+				drawPairs(pairs, (Graphics2D) g);
+				
+				double percentStart = spline.get(i).dMax / Math.hypot(nextX - thisX, nextY - thisY);
+				double percentEnd = (i == spline.size() - 1) ? 1 : 1 - spline.get(i + 1).dMax / Math.hypot(nextX - thisX, nextY - thisY);
+				double xStart = (1 - percentStart) * thisX + percentStart * nextX;
+				double yStart = (1 - percentStart) * thisY + percentStart * nextY;
+				xEnd = (1 - percentEnd) * thisX + percentEnd * nextX;
+				yEnd = (1 - percentEnd) * thisY + percentEnd * nextY;
+				
+				
+				
+				((Graphics2D) g).drawLine((int) xStart, (int) yStart, (int) xEnd, (int) yEnd);
+		        ((Graphics2D) g).setStroke(dashed);
+				g.setColor(Color.GREEN);
+
+				if (percentStart > 0) {
+					((Graphics2D) g).drawLine((int) thisX, (int) thisY, (int) xStart, (int) yStart);
+				} 
+				if (percentEnd < 1) {
+					((Graphics2D) g).drawLine((int) xEnd, (int) yEnd, (int) nextX, (int) nextY);
+				}
+				
+				
+			}
 		}
 		
-		((Graphics2D) g).draw(curve);
-		((Graphics2D) g).draw(str.createStrokedShape(curve));
+		
+		
 		
 
 		if (tempDist > 0) {
 			animating = false;
 		}
+		
 
+	}
+	
+	private static void drawPairs(Pair[] pairs, Graphics2D g2d) {
+		int[] x = new int[pairs.length], y = new int[pairs.length];
+		for (int i = 0; i < pairs.length; i++) {
+			x[i] = (int) pairs[i].getX();
+			y[i] = (int) pairs[i].getY();
+		}
+		g2d.drawPolyline(x, y, pairs.length);
 	}
 
 	public static void main(String[] args) {
@@ -282,18 +363,15 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		}
 	}
 	
-	
-	
-	
-	
 	private class Point {
-		public double x, y, angle, outLen, inLen;
+		public double x, y, angle, outLen, inLen, dMax;
 		public Point(double x, double y) {
 			this.x = x;
 			this.y = y;
 			this.angle = 0;
 			this.outLen = 50;
 			this.inLen = -50;
+			this.dMax = 0;
 		}
 		public Point getOut() {
 			return new Point(x + outLen * Math.sin(Math.toRadians(angle)), y + outLen * Math.cos(Math.toRadians(angle)));
@@ -327,21 +405,28 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 
 		if (keyCode == KeyEvent.VK_UP) {
 			if (isRotate) {
-				if (isInLen) {
-					spline.get(id).inLen--;
+				if (usingBeziers) {
+					if (isInLen) {
+						spline.get(id).inLen--;
+					} else {
+						spline.get(id).outLen++;
+					}
 				} else {
-					spline.get(id).outLen++;
+					spline.get(id).dMax++;
 				}
 			} else {
 				spline.get(id).y--;
 			}
 		} else if (keyCode == KeyEvent.VK_DOWN) {
 			if (isRotate) {
-
-				if (isInLen) {
-					spline.get(id).inLen++;
+				if (usingBeziers) {
+					if (isInLen) {
+						spline.get(id).inLen++;
+					} else {
+						spline.get(id).outLen--;
+					} 
 				} else {
-					spline.get(id).outLen--;
+					spline.get(id).dMax--;
 				}
 			} else {
 				spline.get(id).y++;
@@ -481,6 +566,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			}
 			reader.close();
 		}
+		repaint();
 	}
 	
 	private void save(boolean saveAs) throws IOException {
@@ -500,7 +586,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			
 
 			for (int i = 0; i < spline.size(); i++) {
-				b.write(spline.get(i).x + ", " + spline.get(i).y + ", " +  spline.get(i).inLen + ", " + spline.get(i).outLen + ", "  + spline.get(i).angle);
+				b.write(spline.get(i).x + ", " + spline.get(i).y + ", " +  spline.get(i).inLen + ", " + spline.get(i).outLen + ", "  + spline.get(i).angle + "\n");
 
 			}
 			b.close();

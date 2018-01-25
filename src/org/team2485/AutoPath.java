@@ -9,6 +9,7 @@ import java.util.Arrays;
  */
 
 public class AutoPath {
+	public static Pair vertex;
 	public class Point {
 		public double x, y; 
 		public double heading, curvature;
@@ -34,6 +35,7 @@ public class AutoPath {
 		public double getY() {
 			return y;
 		}
+		
 		
 		public static Pair linearBezier(Pair p1, Pair p2, double t) {
 			return new Pair(p1.x * (1 - t) + p2.x * t, p1.y * (1 - t) + p2.y * t);
@@ -110,7 +112,7 @@ public class AutoPath {
 	}
 	
 	public double getCurvatureAtDist(double dist) {
-		return getPointAtDist(dist).curvature * 27.0 /2;
+		return getPointAtDist(dist).curvature;
 	}
 	
 	public double getPathLength() {
@@ -144,4 +146,80 @@ public class AutoPath {
 		};
 		return getPointsForFunction(p, numPoints);
 	}
+	
+	public static Pair[] getPointsForUnitClothoid(int numPoints) {
+		Pair[] points = new Pair[numPoints];
+		points[0] = new Pair(0, 0);
+		
+		for (int i = 1; i < numPoints; i++) {
+			double arcLength = 1.0 * i / numPoints * Math.sqrt(Math.PI);
+			double angle = 0.5 * arcLength * arcLength;
+			points[i] = new Pair(points[i - 1].x + Math.cos(angle) * 1.0 / numPoints, points[i - 1].y + Math.sin(angle) * 1.0 / numPoints); 
+		}
+		return points;
+
+	}
+	
+	public static Pair[] getPointsForClothoid(int numPoints, Pair vertex, double startAngle, double endAngle, double dMax) {
+		Pair[] unitClothoid = getPointsForUnitClothoid(numPoints);
+		
+		// calculate angle delta
+		double deltaAngle = endAngle - startAngle;
+		while (Math.abs(deltaAngle) > Math.PI) {
+			if (deltaAngle > 0) {
+				deltaAngle -= 2 * Math.PI;
+			} else {
+				deltaAngle += 2 * Math.PI;	
+			}
+		}
+		
+		// dMax for unit clothoid of specified angle
+		int pointsUsed = (int) (numPoints * Math.sqrt(Math.abs(deltaAngle) / Math.PI)); // half if angle is 90 degrees
+		Pair midpoint = unitClothoid[pointsUsed];
+		double dUnit = midpoint.x + midpoint.y * Math.tan(Math.abs(deltaAngle) / 2);
+	
+		// transform points
+		Pair[] clothoid = new Pair[2 * pointsUsed + 1];
+		for (int i = 0; i <= pointsUsed; i++) {
+			double x = unitClothoid[i].x, y = unitClothoid[i].y;
+			// translate so vertex @ 0, 0
+			x -= dUnit;
+			// scale
+			x *= dMax / dUnit;
+			y *= dMax / dUnit;
+			// flip if necessary
+			if (deltaAngle < 0) {
+				y *= -1;
+			}
+			
+			// reflect so have both halves of curve
+			double distToLine = x * Math.cos(deltaAngle / 2) + y * Math.sin(deltaAngle/2);
+			double x1 = x - 2 * distToLine * Math.cos(deltaAngle/2);
+			double y1 = y - 2 * distToLine * Math.sin(deltaAngle/2);
+			clothoid[i] = new Pair(x, y);
+			clothoid[clothoid.length - 1 - i] = new Pair(x1, y1);
+
+		}
+		
+		for (int i = 0; i < clothoid.length; i++) {
+			double x = clothoid[i].x;
+			double y = clothoid[i].y;
+			
+			//rotate by theta = startAngle
+			double tempX = x * Math.cos(startAngle) - y * Math.sin(startAngle);
+			double tempY = x * Math.sin(startAngle) + y * Math.cos(startAngle);
+			x = tempX;
+			y = tempY;
+			//translate so vertex @ vertex
+			x += vertex.x;
+			y += vertex.y;
+			
+			clothoid[i].x = x;
+			clothoid[i].y = y;
+		}
+		return clothoid;
+		
+	}
+	
+	
 }
