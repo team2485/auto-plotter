@@ -1,7 +1,13 @@
 package org.team2485;
 
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Stroke;
 import java.util.ArrayList;
 import java.util.Arrays;
+
+import org.team2485.AutoPath.Pair;
 
 
 /**
@@ -71,6 +77,41 @@ public class AutoPath {
 		generateCurve();
 		
 	} 
+	
+	public static AutoPath getAutoPathForClothoidSpline(Pair[] points, double[] distances) {
+		Pair[][] input = new Pair[distances.length * 2 + 1][];
+		
+		double percent = 1 - distances[0] / Math.hypot(points[1].x - points[0].x, 
+				points[1].y - points[0].y);
+		double xEnd = (1 - percent) * points[0].x + percent * points[1].x;
+		double yEnd = (1 - percent) * points[0].y + percent * points[1].y;
+		input[0] = AutoPath.getPointsForBezier(100, points[0], new Pair(xEnd, yEnd));
+		
+		
+		for (int i = 1; i < points.length - 1; i++) {
+
+			double lastX = points[i - 1].x, lastY = points[i - 1].y;
+			double thisX = points[i].x, thisY = points[i].y;
+			double nextX = points[i + 1].x, nextY = points[i + 1].y;
+
+			input[2 * i - 1] = AutoPath.getPointsForClothoid(10000, new Pair(thisX, thisY), 
+					Math.atan2(thisY - lastY, thisX - lastX), Math.atan2(nextY - thisY, nextX - thisX), 
+					distances[i - 1]);
+			
+			double percentStart = distances[i - 1] / Math.hypot(nextX - thisX, nextY - thisY);
+			double percentEnd = (i == points.length - 1) ? 1 : 1 - distances[i] / Math.hypot(nextX - thisX, nextY - thisY);
+			double xStart = (1 - percentStart) * thisX + percentStart * nextX;
+			double yStart = (1 - percentStart) * thisY + percentStart * nextY;
+			xEnd = (1 - percentEnd) * thisX + percentEnd * nextX;
+			yEnd = (1 - percentEnd) * thisY + percentEnd * nextY;
+			
+			input[2 * i] = AutoPath.getPointsForBezier(100, new Pair(xStart, yStart), new Pair(xEnd, yEnd));
+
+		}
+		
+		return new AutoPath(input);
+		
+	}
 	
 	private void generateCurve() {
 		int len = points.length;

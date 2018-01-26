@@ -46,8 +46,8 @@ import org.team2485.AutoPath.Pair;
 public class TestPanel extends JPanel implements KeyListener, MouseListener {
 	
 	private JFrame frame;
-	private final boolean usingBeziers = false;
-	private BufferedImage robot, fieldB, fieldR;
+	private boolean usingBeziers;
+	private BufferedImage robot, fieldBW, fieldColor;
 	private int w, h;
 	private int id = -1;
 	private boolean isInLen;
@@ -56,7 +56,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 	private boolean hidden;
 	private File file = null;
 	private JFileChooser fc = new JFileChooser();
-	private boolean isRed = false;
+	private boolean isColor = false;
 	private double robotWidth;
 	private boolean animating = false;
 	private double dist = 0;
@@ -77,13 +77,14 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		frame = new JFrame();
 		
 		ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-		fieldB = ImageIO.read(classLoader.getResourceAsStream("drawing.png"));
-		fieldR = ImageIO.read(classLoader.getResourceAsStream("drawing-color.png"));
+		fieldBW = ImageIO.read(classLoader.getResourceAsStream("drawing.png"));
+		fieldColor = ImageIO.read(classLoader.getResourceAsStream("drawing-color.png"));
 		robot = ImageIO.read(classLoader.getResourceAsStream("robot.png"));
-		isRed = false;
+		isColor = false;
+		usingBeziers = true;
 		robotWidth = robot.getWidth();
-		w = (isRed ? fieldR : fieldB).getWidth(null);
-		h = (isRed ? fieldR : fieldB).getHeight(null);
+		w = (isColor ? fieldColor : fieldBW).getWidth(null);
+		h = (isColor ? fieldColor : fieldBW).getHeight(null);
 
 		this.setSize(w, h);
 		frame.add(this);
@@ -165,7 +166,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 
 	@Override
 	protected void paintComponent(Graphics g) {
-		g.drawImage((isRed ? fieldR : fieldB), 0, 0, null);
+		g.drawImage((isColor ? fieldColor : fieldBW), 0, 0, null);
 		
 		for (int i = 0; i < spline.size(); i++) {
 			
@@ -283,7 +284,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			((Graphics2D) g).draw(curve);
 			((Graphics2D) g).draw(str.createStrokedShape(curve));
 		} else {
-			
+			((Graphics2D) g).setStroke(new BasicStroke(1));			
 			g.setColor(Color.RED);
 			double percent = 1 - spline.get(1).dMax / Math.hypot(spline.get(1).x - spline.get(0).x, 
 					spline.get(1).y - spline.get(0).y);
@@ -317,8 +318,6 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 				double yStart = (1 - percentStart) * thisY + percentStart * nextY;
 				xEnd = (1 - percentEnd) * thisX + percentEnd * nextX;
 				yEnd = (1 - percentEnd) * thisY + percentEnd * nextY;
-				
-				
 				
 				((Graphics2D) g).drawLine((int) xStart, (int) yStart, (int) xEnd, (int) yEnd);
 		        ((Graphics2D) g).setStroke(dashed);
@@ -392,10 +391,13 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		if (keyCode == KeyEvent.VK_U) {
 			isRotate = !isRotate;
 		} else if (keyCode == KeyEvent.VK_E) {
-			isRed = !isRed;
+			isColor = !isColor;
 		} else if (keyCode == KeyEvent.VK_A) {
 			animating = true;
 			dist = 0;
+		} else if (keyCode == KeyEvent.VK_B) {
+			usingBeziers = !usingBeziers;
+
 		}
 		
 		if (id < 0) {
@@ -453,12 +455,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			if (id >= spline.size()) {
 				id -= spline.size();
 			}
-		} else if (keyCode == KeyEvent.VK_F) {
-			spline.get(id).inLen *= -1;
-			spline.get(id).outLen *= -1;
-			spline.get(id).angle += 180;
-
-		} else if (keyCode == KeyEvent.VK_ESCAPE) {
+		}  else if (keyCode == KeyEvent.VK_ESCAPE) {
 			id = -1;
 		}
 
@@ -480,7 +477,6 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 	@Override
 	public void mousePressed(MouseEvent e) {
 		if (e.isPopupTrigger()) {
-			System.out.println("thn");
 			JPopupMenu menu = new JPopupMenu();
 	        JMenuItem menuItem = new JMenuItem(id < 0 ? "New" : "Delete");
 	        menuItem.addActionListener((ActionEvent ev) -> {
@@ -554,14 +550,17 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 				spline.remove(0);
 			}
 			BufferedReader reader = new BufferedReader(new FileReader(file));
-			String side = reader.readLine();
-			isRed = side.startsWith("R");
+			String bezier = reader.readLine();
+			usingBeziers = bezier.startsWith("B");
+			String color = reader.readLine();
+			isColor = color.startsWith("C");
 			for (String s = reader.readLine(); s != null; s = reader.readLine()) {
 				String[] coords = s.split(", ");
 				Point p = new Point(Double.parseDouble(coords[0]), Double.parseDouble(coords[1]));
 				p.inLen = Double.parseDouble(coords[2]);
 				p.outLen = Double.parseDouble(coords[3]);
 				p.angle = Double.parseDouble(coords[4]);
+				p.dMax = Double.parseDouble(coords[5]);
 				spline.add(p);
 			}
 			reader.close();
@@ -582,12 +581,11 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		
 		if (file != null) {
 			BufferedWriter b = new BufferedWriter(new FileWriter(file));
- 			b.write(isRed ? "R\n" : "B\n");
-			
-
+ 			b.write(usingBeziers ? "Bezier\n" : "Clothoid\n");
+			b.write(isColor ? "Color\n" : "BW\n");
 			for (int i = 0; i < spline.size(); i++) {
-				b.write(spline.get(i).x + ", " + spline.get(i).y + ", " +  spline.get(i).inLen + ", " + spline.get(i).outLen + ", "  + spline.get(i).angle + "\n");
-
+				b.write(spline.get(i).x + ", " + spline.get(i).y + ", " +  spline.get(i).inLen + ", " + 
+						spline.get(i).outLen + ", "  + spline.get(i).angle + ", " + spline.get(i).dMax  + "\n");
 			}
 			b.close();
 		}
@@ -638,8 +636,8 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 											"Vertical Arrow Keys - Move control points or translate\n" + 
 											"U - switch whether rotating or translating\n" + 
 											"Space - switch whether adjusting in control point or out control point\n" + 
-											"F - flip orientation of robot\n" + 
-											"E - switch side of field\n" + 
+											"B - switch beziers vs clothoids\n" + 
+											"E - switch color of field\n" + 
 											"A - animate path\n" +
 											"H - hide robot images (only show path)\n"
 										);
