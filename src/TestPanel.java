@@ -284,6 +284,18 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			((Graphics2D) g).draw(curve);
 			((Graphics2D) g).draw(str.createStrokedShape(curve));
 		} else {
+			// create path
+			Pair[] controlPoints = new Pair[spline.size()];
+			double[] dists = new double[spline.size() - 2];
+			for (int i = 0; i < spline.size(); i++) {
+				if (i > 0 && i < spline.size() - 1) {
+					dists[i - 1] = spline.get(i).dMax;
+				}
+				controlPoints[i] = new Pair(spline.get(i).x, spline.get(i).y);
+			}
+			AutoPath p = AutoPath.getAutoPathForClothoidSpline(controlPoints, dists);
+			
+			
 			((Graphics2D) g).setStroke(new BasicStroke(1));			
 			g.setColor(Color.RED);
 			double percent = 1 - spline.get(1).dMax / Math.hypot(spline.get(1).x - spline.get(0).x, 

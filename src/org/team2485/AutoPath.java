@@ -15,7 +15,6 @@ import org.team2485.AutoPath.Pair;
  */
 
 public class AutoPath {
-	public static Pair vertex;
 	public class Point {
 		public double x, y; 
 		public double heading, curvature;
@@ -137,6 +136,15 @@ public class AutoPath {
 			points[i].curvature = diffHeading / (points[i + 1].arcLength - points[i].arcLength);
 		}
 		points[len - 1].curvature = points[len - 2].curvature = points[len - 3].curvature;
+	}
+	
+	public void getXY() {
+		int[] x = new int[points.length];
+		int[] y = new int[points.length];
+		for (int i = 0; i < points.length; i++) {
+			x[i] = (int) points[i].x; 
+			y[i] = (int) points[i].y;
+		}
 	}
 	
 	public Point getPointAtDist(double dist) {
