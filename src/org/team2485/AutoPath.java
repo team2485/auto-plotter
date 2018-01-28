@@ -98,7 +98,7 @@ public class AutoPath {
 					distances[i - 1]);
 			
 			double percentStart = distances[i - 1] / Math.hypot(nextX - thisX, nextY - thisY);
-			double percentEnd = (i == points.length - 1) ? 1 : 1 - distances[i] / Math.hypot(nextX - thisX, nextY - thisY);
+			double percentEnd = (i == points.length - 2) ? 1 : 1 - distances[i] / Math.hypot(nextX - thisX, nextY - thisY);
 			double xStart = (1 - percentStart) * thisX + percentStart * nextX;
 			double yStart = (1 - percentStart) * thisY + percentStart * nextY;
 			xEnd = (1 - percentEnd) * thisX + percentEnd * nextX;
@@ -138,13 +138,12 @@ public class AutoPath {
 		points[len - 1].curvature = points[len - 2].curvature = points[len - 3].curvature;
 	}
 	
-	public void getXY() {
-		int[] x = new int[points.length];
-		int[] y = new int[points.length];
+	public Pair[] getPairs() {
+		Pair[] pairs = new Pair[points.length];
 		for (int i = 0; i < points.length; i++) {
-			x[i] = (int) points[i].x; 
-			y[i] = (int) points[i].y;
+			pairs[i] = new Pair(points[i].x, points[i].y);
 		}
+		return pairs;
 	}
 	
 	public Point getPointAtDist(double dist) {

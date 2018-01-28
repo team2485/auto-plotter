@@ -5,6 +5,7 @@ import java.awt.Composite;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.Stroke;
 import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
@@ -41,6 +42,8 @@ import javax.swing.JPopupMenu;
 
 import org.team2485.AutoPath;
 import org.team2485.AutoPath.Pair;
+
+import javafx.scene.shape.Polyline;
 
 @SuppressWarnings("serial")
 public class TestPanel extends JPanel implements KeyListener, MouseListener {
@@ -292,17 +295,58 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 					dists[i - 1] = spline.get(i).dMax;
 				}
 				controlPoints[i] = new Pair(spline.get(i).x, spline.get(i).y);
+				
 			}
+			
+			((Graphics2D) g).setStroke(new BasicStroke(1));
+			g.setColor(Color.RED);
 			AutoPath p = AutoPath.getAutoPathForClothoidSpline(controlPoints, dists);
 			
+			for (double i = 0; i < 1; i+= 0.0001) {
+				System.out.println(p.getCurvatureAtDist(i * p.getPathLength()));
+			}
 			
-			((Graphics2D) g).setStroke(new BasicStroke(1));			
-			g.setColor(Color.RED);
+			Pair[] pairs = p.getPairs();
+			curve.moveTo(pairs[0].getX(), pairs[0].getY());
+			for (int j = 1; j < pairs.length; j++) {
+				curve.lineTo(pairs[j].getX(), pairs[j].getY());
+			}
+			((Graphics2D) g).draw(curve);
+			((Graphics2D) g).draw(str.createStrokedShape(curve));
+			
+			for (int i = 0; i < spline.size() - 1; i++) {
+				if (animating) {
+					boolean inverted = spline.get(i).outLen < 0;
+					if (tempDist < p.getPathLength() && tempDist >= 0) {
+						AutoPath.Point point = p.getPointAtDist(tempDist);
+						double x = point.x;
+						double y = point.y;
+						double angle = point.heading + (inverted ? Math.PI : 0);
+						AffineTransform trans = new AffineTransform();
+						trans.translate(robot.getWidth() * .5, robot.getHeight() * .5);
+						trans.rotate(Math.PI - angle, robot.getWidth() * .5, robot.getHeight() * .5);
+						AffineTransformOp op = new AffineTransformOp(trans, AffineTransformOp.TYPE_BILINEAR);
+						BufferedImage dest = op.filter(robot, null);
+
+						Composite original = ((Graphics2D) g).getComposite();
+						((Graphics2D) g).setComposite(original);
+						g.drawImage(dest, (int) x - robot.getWidth(), (int) y - robot.getHeight(), null);
+					}
+					tempDist -= p.getPathLength();
+					
+					
+				}
+				
+				
+			}
+			
+			
+			//draw dashed lines
+		
 			double percent = 1 - spline.get(1).dMax / Math.hypot(spline.get(1).x - spline.get(0).x, 
 					spline.get(1).y - spline.get(0).y);
 			double xEnd = (1 - percent) * spline.get(0).x + percent * spline.get(1).x;
 			double yEnd = (1 - percent) * spline.get(0).y + percent * spline.get(1).y;
-			((Graphics2D) g).drawLine((int) spline.get(0).x, (int) spline.get(0).y, (int) xEnd, (int) yEnd);
 			
 			
 			Stroke dashed = new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{9}, 0);
@@ -312,17 +356,11 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 
 			for (int i = 1; i < spline.size() - 1; i++) {
 				
-				((Graphics2D) g).setStroke(new BasicStroke(1));
-				g.setColor(Color.RED);
-
-				double lastX = spline.get(i-1).x, lastY = spline.get(i-1).y;
+			
 				double thisX = spline.get(i).x, thisY = spline.get(i).y;
 				double nextX = spline.get(i+1).x, nextY = spline.get(i+1).y;
 
-				Pair[] pairs = AutoPath.getPointsForClothoid(10000, new Pair(thisX, thisY), 
-						Math.atan2(thisY - lastY, thisX - lastX), Math.atan2(nextY - thisY, nextX - thisX), 
-						spline.get(i).dMax);
-				drawPairs(pairs, (Graphics2D) g);
+				
 				
 				double percentStart = spline.get(i).dMax / Math.hypot(nextX - thisX, nextY - thisY);
 				double percentEnd = (i == spline.size() - 1) ? 1 : 1 - spline.get(i + 1).dMax / Math.hypot(nextX - thisX, nextY - thisY);
@@ -331,7 +369,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 				xEnd = (1 - percentEnd) * thisX + percentEnd * nextX;
 				yEnd = (1 - percentEnd) * thisY + percentEnd * nextY;
 				
-				((Graphics2D) g).drawLine((int) xStart, (int) yStart, (int) xEnd, (int) yEnd);
+				
 		        ((Graphics2D) g).setStroke(dashed);
 				g.setColor(Color.GREEN);
 
@@ -342,6 +380,10 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 					((Graphics2D) g).drawLine((int) xEnd, (int) yEnd, (int) nextX, (int) nextY);
 				}
 				
+				
+			}
+			
+			if (animating) {
 				
 			}
 		}
