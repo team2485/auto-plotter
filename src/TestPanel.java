@@ -43,11 +43,11 @@ import javax.swing.JPopupMenu;
 import org.team2485.AutoPath;
 import org.team2485.AutoPath.Pair;
 
-import javafx.scene.shape.Polyline;
+
 
 @SuppressWarnings("serial")
 public class TestPanel extends JPanel implements KeyListener, MouseListener {
-	
+
 	private JFrame frame;
 	private boolean usingBeziers;
 	private BufferedImage robot, fieldBW, fieldColor;
@@ -64,9 +64,10 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 	private boolean animating = false;
 	private double dist = 0;
 	private double speed = 100;
+	private AutoPath path;
 
 	public TestPanel() throws IOException {
-		
+
 		new Timer().schedule(new TimerTask() {
 			@Override
 			public void run() {
@@ -78,7 +79,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		}, 0, 5);
 
 		frame = new JFrame();
-		
+
 		ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
 		fieldBW = ImageIO.read(classLoader.getResourceAsStream("drawing.png"));
 		fieldColor = ImageIO.read(classLoader.getResourceAsStream("drawing-color.png"));
@@ -91,23 +92,23 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 
 		this.setSize(w, h);
 		frame.add(this);
-		
+
 		frame.setSize(w, h);
 
 		System.setProperty("apple.laf.useScreenMenuBar", "true");
 		JMenuBar menu = new JMenuBar();
 		JMenu fileMenu = new JMenu("File");
 		menu.add(fileMenu);
-		
+
 		JMenu helpMenu = new JMenu("Help");
 		menu.add(helpMenu);
 
 		JMenuItem controlsMenu = new JMenuItem("Controls");
 		controlsMenu.addActionListener((ActionEvent e) -> {
-				viewControls();
+			viewControls();
 		});
 		helpMenu.add(controlsMenu);
-		
+
 		JMenuItem openMenu = new JMenuItem("Open");
 		openMenu.addActionListener((ActionEvent e) -> {
 			try {
@@ -118,7 +119,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		});
 		fileMenu.add(openMenu);
 
-		
+
 		JMenuItem saveMenu = new JMenuItem("Save");
 		saveMenu.addActionListener((ActionEvent e) -> {
 			try {
@@ -128,7 +129,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			}
 		});
 		fileMenu.add(saveMenu);
-		
+
 		JMenuItem saveAsMenu = new JMenuItem("Save As");
 		saveAsMenu.addActionListener((ActionEvent e) -> {
 			try {
@@ -139,7 +140,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			}
 		});
 		fileMenu.add(saveAsMenu);
-		
+
 		JMenuItem exportMenu = new JMenuItem("Export to clipboard");
 		exportMenu.addActionListener((ActionEvent e) -> {
 			export();
@@ -149,7 +150,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 
 
 
-		
+
 
 		frame.setVisible(true);
 		frame.repaint();
@@ -160,19 +161,35 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		spline.add(new Point(300, 300));
 		spline.get(1).dMax = 100;
 
-		
-		
+
+
 		addMouseListener(this);
 		frame.addKeyListener(this);
-		
+
+	}
+
+	private void updatePath() {
+		// create path
+		Pair[] controlPoints = new Pair[spline.size()];
+		double[] dists = new double[spline.size() - 2];
+		for (int i = 0; i < spline.size(); i++) {
+			if (i > 0 && i < spline.size() - 1) {
+				dists[i - 1] = spline.get(i).dMax;
+			}
+			controlPoints[i] = new Pair(spline.get(i).x, spline.get(i).y);
+
+		}
+
+		path = AutoPath.getAutoPathForClothoidSpline(controlPoints, dists);
+
 	}
 
 	@Override
 	protected void paintComponent(Graphics g) {
 		g.drawImage((isColor ? fieldColor : fieldBW), 0, 0, null);
-		
+
 		for (int i = 0; i < spline.size(); i++) {
-			
+
 			if (i != id && hidden) {
 				continue;
 			}
@@ -195,7 +212,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			trans.rotate(Math.PI - angle, robot.getWidth() / 2.0, robot.getHeight() / 2.0);
 			AffineTransformOp op = new AffineTransformOp(trans, AffineTransformOp.TYPE_BILINEAR);
 			BufferedImage dest = op.filter(robot, null);
-			
+
 			if (!animating && (usingBeziers || i == 0 || i == spline.size() - 1)) {
 				Composite original = ((Graphics2D) g).getComposite();
 				Composite translucent = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (i == id ? 0.75f : 0.25f));
@@ -242,12 +259,12 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 				if (hidden && i != id && i + 1 != id) {
 					continue;
 				}
-				
+
 				CubicCurve2D temp = new CubicCurve2D.Double(spline.get(i).x, spline.get(i).y, 
 						spline.get(i).getOut().x, spline.get(i).getOut().y, 
 						spline.get(i + 1).getIn().x, spline.get(i + 1).getIn().y, 
 						spline.get(i + 1).x, spline.get(i + 1).y);
-				
+
 				if (i > 0 && spline.get(i).outLen * spline.get(i).inLen > 0) { // turn around
 					((Graphics2D) g).draw(curve);
 					((Graphics2D) g).draw(str.createStrokedShape(curve));
@@ -255,8 +272,8 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 				} 
 				curve.append(temp, true);
 
-				
-				
+
+
 				if(animating) {
 					AutoPath.Pair[] p = AutoPath.getPointsForBezier(200, 
 							new AutoPath.Pair(spline.get(i).x, spline.get(i).y),
@@ -282,95 +299,82 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 					}
 					tempDist -= path.getPathLength();
 				}
-				
+
 			}
 			((Graphics2D) g).draw(curve);
 			((Graphics2D) g).draw(str.createStrokedShape(curve));
 		} else {
-			// create path
-			Pair[] controlPoints = new Pair[spline.size()];
-			double[] dists = new double[spline.size() - 2];
-			for (int i = 0; i < spline.size(); i++) {
-				if (i > 0 && i < spline.size() - 1) {
-					dists[i - 1] = spline.get(i).dMax;
-				}
-				controlPoints[i] = new Pair(spline.get(i).x, spline.get(i).y);
-				
-			}
-			
+
+			updatePath();
+
 			((Graphics2D) g).setStroke(new BasicStroke(1));
 			g.setColor(Color.RED);
-			AutoPath p = AutoPath.getAutoPathForClothoidSpline(controlPoints, dists);
-			
-			for (double i = 0; i < 1; i+= 0.0001) {
-				System.out.println(p.getCurvatureAtDist(i * p.getPathLength()));
-			}
-			
-			Pair[] pairs = p.getPairs();
+
+
+
+			Pair[] pairs = path.getPairs();
 			curve.moveTo(pairs[0].getX(), pairs[0].getY());
 			for (int j = 1; j < pairs.length; j++) {
 				curve.lineTo(pairs[j].getX(), pairs[j].getY());
+
 			}
 			((Graphics2D) g).draw(curve);
 			((Graphics2D) g).draw(str.createStrokedShape(curve));
-			
-			for (int i = 0; i < spline.size() - 1; i++) {
-				if (animating) {
-					boolean inverted = spline.get(i).outLen < 0;
-					if (tempDist < p.getPathLength() && tempDist >= 0) {
-						AutoPath.Point point = p.getPointAtDist(tempDist);
-						double x = point.x;
-						double y = point.y;
-						double angle = point.heading + (inverted ? Math.PI : 0);
-						AffineTransform trans = new AffineTransform();
-						trans.translate(robot.getWidth() * .5, robot.getHeight() * .5);
-						trans.rotate(Math.PI - angle, robot.getWidth() * .5, robot.getHeight() * .5);
-						AffineTransformOp op = new AffineTransformOp(trans, AffineTransformOp.TYPE_BILINEAR);
-						BufferedImage dest = op.filter(robot, null);
 
-						Composite original = ((Graphics2D) g).getComposite();
-						((Graphics2D) g).setComposite(original);
-						g.drawImage(dest, (int) x - robot.getWidth(), (int) y - robot.getHeight(), null);
-					}
-					tempDist -= p.getPathLength();
-					
-					
+			if (animating) {
+				if (tempDist < path.getPathLength() && tempDist >= 0) {
+					AutoPath.Point point = path.getPointAtDist(tempDist);
+					double x = point.x;
+					double y = point.y;
+					double angle = point.heading;
+					AffineTransform trans = new AffineTransform();
+					trans.translate(x - robot.getWidth() * .5, y - robot.getHeight() * .5);
+					trans.rotate(Math.PI - angle, robot.getWidth() * .5, robot.getHeight() * .5);
+					AffineTransformOp op = new AffineTransformOp(trans, AffineTransformOp.TYPE_BILINEAR);
+					BufferedImage dest = op.filter(robot, null);
+
+					Composite original = ((Graphics2D) g).getComposite();
+					((Graphics2D) g).setComposite(original);
+					g.drawImage(dest, 0, 0, null);
 				}
-				
-				
+				tempDist -= path.getPathLength();
+
+
 			}
-			
-			
+
+
+
+
 			//draw dashed lines
-		
+
 			double percent = 1 - spline.get(1).dMax / Math.hypot(spline.get(1).x - spline.get(0).x, 
 					spline.get(1).y - spline.get(0).y);
 			double xEnd = (1 - percent) * spline.get(0).x + percent * spline.get(1).x;
 			double yEnd = (1 - percent) * spline.get(0).y + percent * spline.get(1).y;
-			
-			
+
+
 			Stroke dashed = new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{9}, 0);
-	        ((Graphics2D) g).setStroke(dashed);
+			((Graphics2D) g).setStroke(dashed);
 			g.setColor(Color.GREEN);
 			((Graphics2D) g).drawLine((int) xEnd, (int) yEnd, (int) spline.get(1).x, (int) spline.get(1).y);
 
 			for (int i = 1; i < spline.size() - 1; i++) {
-				
-			
+
+
 				double thisX = spline.get(i).x, thisY = spline.get(i).y;
 				double nextX = spline.get(i+1).x, nextY = spline.get(i+1).y;
 
-				
-				
+
+
 				double percentStart = spline.get(i).dMax / Math.hypot(nextX - thisX, nextY - thisY);
 				double percentEnd = (i == spline.size() - 1) ? 1 : 1 - spline.get(i + 1).dMax / Math.hypot(nextX - thisX, nextY - thisY);
 				double xStart = (1 - percentStart) * thisX + percentStart * nextX;
 				double yStart = (1 - percentStart) * thisY + percentStart * nextY;
 				xEnd = (1 - percentEnd) * thisX + percentEnd * nextX;
 				yEnd = (1 - percentEnd) * thisY + percentEnd * nextY;
-				
-				
-		        ((Graphics2D) g).setStroke(dashed);
+
+
+				((Graphics2D) g).setStroke(dashed);
 				g.setColor(Color.GREEN);
 
 				if (percentStart > 0) {
@@ -379,26 +383,23 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 				if (percentEnd < 1) {
 					((Graphics2D) g).drawLine((int) xEnd, (int) yEnd, (int) nextX, (int) nextY);
 				}
-				
-				
+
+
 			}
-			
-			if (animating) {
-				
-			}
+
 		}
-		
-		
-		
-		
+
+
+
+
 
 		if (tempDist > 0) {
 			animating = false;
 		}
-		
+
 
 	}
-	
+
 	private static void drawPairs(Pair[] pairs, Graphics2D g2d) {
 		int[] x = new int[pairs.length], y = new int[pairs.length];
 		for (int i = 0; i < pairs.length; i++) {
@@ -415,7 +416,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			e.printStackTrace();
 		}
 	}
-	
+
 	private class Point {
 		public double x, y, angle, outLen, inLen, dMax;
 		public Point(double x, double y) {
@@ -433,7 +434,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			return new Point(x + inLen * Math.sin(Math.toRadians(angle)), y + inLen * Math.cos(Math.toRadians(angle)));
 		}
 	}
-	
+
 	@Override
 	public void keyTyped(KeyEvent e) {
 
@@ -453,7 +454,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			usingBeziers = !usingBeziers;
 
 		}
-		
+
 		if (id < 0) {
 			repaint();
 			return;
@@ -487,7 +488,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			} else {
 				spline.get(id).y++;
 			}
-			
+
 		} else if (keyCode == KeyEvent.VK_LEFT) {
 			if (isRotate) {
 				spline.get(id).angle++;
@@ -519,7 +520,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 
 	private String output(double x, double y) {
 		return "new Pair(" + Math.round(x) / 2.0 + ", " + Math.round(y) / 2.0 + "),\n";
-		
+
 	}
 
 	@Override
@@ -532,17 +533,17 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 	public void mousePressed(MouseEvent e) {
 		if (e.isPopupTrigger()) {
 			JPopupMenu menu = new JPopupMenu();
-	        JMenuItem menuItem = new JMenuItem(id < 0 ? "New" : "Delete");
-	        menuItem.addActionListener((ActionEvent ev) -> {
-	        	if (id < 0) {
-	        		newPoint(e.getX(), e.getY());
-	        	} else { 
-	        		delete(id);
-	        	}
+			JMenuItem menuItem = new JMenuItem(id < 0 ? "New" : "Delete");
+			menuItem.addActionListener((ActionEvent ev) -> {
+				if (id < 0) {
+					newPoint(e.getX(), e.getY());
+				} else { 
+					delete(id);
+				}
 
 			});
-	        menu.add(menuItem);
-	        menu.show(e.getComponent(), e.getX(), e.getY());
+			menu.add(menuItem);
+			menu.show(e.getComponent(), e.getX(), e.getY());
 		} else if (id < 0) {
 			for (int i = 0; i < spline.size(); i++) {
 				if (Math.hypot(spline.get(i).x - e.getX(), spline.get(i).y - e.getY()) < robotWidth / 2) {
@@ -567,19 +568,19 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		if (e.isPopupTrigger()) {
 			System.out.println("thn");
 			JPopupMenu menu = new JPopupMenu();
-	        JMenuItem menuItem = new JMenuItem(id < 0 ? "New" : "Delete");
-	        menuItem.addActionListener((ActionEvent ev) -> {
-	        	if (id < 0) {
-	        		newPoint(e.getX(), e.getY());
-	        	} else { 
-	        		delete(id);
-	        	}
+			JMenuItem menuItem = new JMenuItem(id < 0 ? "New" : "Delete");
+			menuItem.addActionListener((ActionEvent ev) -> {
+				if (id < 0) {
+					newPoint(e.getX(), e.getY());
+				} else { 
+					delete(id);
+				}
 
 			});
-	        menu.add(menuItem);
-	        menu.show(e.getComponent(), e.getX(), e.getY());
+			menu.add(menuItem);
+			menu.show(e.getComponent(), e.getX(), e.getY());
 		} 
-		
+
 
 	}
 
@@ -621,7 +622,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		}
 		repaint();
 	}
-	
+
 	private void save(boolean saveAs) throws IOException {
 		if (file == null || saveAs) {
 			int ret = fc.showSaveDialog(frame);
@@ -632,10 +633,10 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 				}
 			}
 		} 
-		
+
 		if (file != null) {
 			BufferedWriter b = new BufferedWriter(new FileWriter(file));
- 			b.write(usingBeziers ? "Bezier\n" : "Clothoid\n");
+			b.write(usingBeziers ? "Bezier\n" : "Clothoid\n");
 			b.write(isColor ? "Color\n" : "BW\n");
 			for (int i = 0; i < spline.size(); i++) {
 				b.write(spline.get(i).x + ", " + spline.get(i).y + ", " +  spline.get(i).inLen + ", " + 
@@ -644,35 +645,49 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			b.close();
 		}
 	}
-	
+
 	private void export() {
 		String s = "";
 
-		for (int i = 0; i < spline.size(); i++) {
-			double x = spline.get(0).x, 
-					y = spline.get(0).y;
-			if (i > 0) 
-				s += output(spline.get(i).getIn().x - x, y - spline.get(i).getIn().y);
-			s += output(spline.get(i).x - x, y - spline.get(i).y);
-			if (i < spline.size() - 1)
-				s += output(spline.get(i).getOut().x - x,  y - spline.get(i).getOut().y);
-			
+		if (usingBeziers) {
+			for (int i = 0; i < spline.size(); i++) {
+				double x = spline.get(0).x, 
+						y = spline.get(0).y;
+				if (i > 0) 
+					s += output(spline.get(i).getIn().x - x, y - spline.get(i).getIn().y);
+				s += output(spline.get(i).x - x, y - spline.get(i).y);
+				if (i < spline.size() - 1)
+					s += output(spline.get(i).getOut().x - x,  y - spline.get(i).getOut().y);
 
+
+			} 
+		} else {
+			s += "Pair[] controlPoints = {";
+			for (int i = 0; i < spline.size(); i++) {
+				s += output(spline.get(i).x - spline.get(0).x, spline.get(i).y - spline.get(0).y);
+			}
+			s += "};\n";
+			s += "double[] dists = {";
+			for (int i = 0; i < spline.size() - 2; i++) {
+				s += spline.get(i + 1).dMax + ",";
+			}
+			s += "};\n";
+			s += "path = AutoPath.getAutoPathForClothoidSpline(controlPoints, dists);";
 		}
 		System.out.println(s);
 
 		StringSelection selection = new StringSelection(s);
-	    Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-	    clipboard.setContents(selection, selection);
-	    
-	    
+		Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+		clipboard.setContents(selection, selection);
+
+
 	}
 
 	private void newPoint(int x, int y) {
 		spline.add(new Point(x, y));
 		repaint();
 	}
-	
+
 	private void delete(int id) {
 		spline.remove(id);
 		this.id = -1;
@@ -682,25 +697,25 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 
 	private void viewControls() {
 		JOptionPane.showMessageDialog(null, "Click on image of robot to select it\n" + 
-											"Click anywhere with robot selected to move it\n" + 
-											"Escape - Deselect\n" + 
-											"Tab - select next point\n" +
-											"Right click - Add / Remove point\n" + 
-											"Horizontal Arrow Keys - Rotate or Translate\n" + 
-											"Vertical Arrow Keys - Move control points or translate\n" + 
-											"U - switch whether rotating or translating\n" + 
-											"Space - switch whether adjusting in control point or out control point\n" + 
-											"B - switch beziers vs clothoids\n" + 
-											"E - switch color of field\n" + 
-											"A - animate path\n" +
-											"H - hide robot images (only show path)\n"
-										);
+				"Click anywhere with robot selected to move it\n" + 
+				"Escape - Deselect\n" + 
+				"Tab - select next point\n" +
+				"Right click - Add / Remove point\n" + 
+				"Horizontal Arrow Keys - Rotate or Translate\n" + 
+				"Vertical Arrow Keys - Move control points or translate\n" + 
+				"U - switch whether rotating or translating\n" + 
+				"Space - switch whether adjusting in control point or out control point\n" + 
+				"B - switch beziers vs clothoids\n" + 
+				"E - switch color of field\n" + 
+				"A - animate path\n" +
+				"H - hide robot images (only show path)\n"
+				);
 	}
 
 	@Override
 	public void mouseClicked(MouseEvent e) {
 		// TODO Auto-generated method stub
-		
+
 	}
 }
 

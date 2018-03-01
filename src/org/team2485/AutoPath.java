@@ -7,7 +7,6 @@ import java.awt.Stroke;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import org.team2485.AutoPath.Pair;
 
 
 /**
@@ -58,6 +57,7 @@ public class AutoPath {
 		public Pair getPointForParameter(double t); 
 	}
 	private Point[] points; 
+	private static Pair[] unitClothoid;
 	
 	public AutoPath(Pair[]... pairs) {
 		
@@ -65,6 +65,15 @@ public class AutoPath {
 		ArrayList<Pair> newPairs = new ArrayList<>();
 		for (int i = 0; i < pairs.length; i++) {
 			newPairs.addAll(Arrays.asList(pairs[i]));
+		}
+		
+		for (int i = 0; i < newPairs.size() - 1; i++) {
+			double dX = newPairs.get(i + 1).x - newPairs.get(i).x;
+			double dY = newPairs.get(i + 1).y - newPairs.get(i).y;
+			if (Math.hypot(dX, dY) < Math.pow(10, -10)) {
+				newPairs.remove(i);
+				i--;
+			}
 		}
 		
 		// convert from pairs to points
@@ -84,7 +93,7 @@ public class AutoPath {
 				points[1].y - points[0].y);
 		double xEnd = (1 - percent) * points[0].x + percent * points[1].x;
 		double yEnd = (1 - percent) * points[0].y + percent * points[1].y;
-		input[0] = AutoPath.getPointsForBezier(100, points[0], new Pair(xEnd, yEnd));
+		input[0] = AutoPath.getPointsForBezier(200, points[0], new Pair(xEnd, yEnd));
 		
 		
 		for (int i = 1; i < points.length - 1; i++) {
@@ -93,7 +102,7 @@ public class AutoPath {
 			double thisX = points[i].x, thisY = points[i].y;
 			double nextX = points[i + 1].x, nextY = points[i + 1].y;
 
-			input[2 * i - 1] = AutoPath.getPointsForClothoid(10000, new Pair(thisX, thisY), 
+			input[2 * i - 1] = AutoPath.getPointsForClothoid(new Pair(thisX, thisY), 
 					Math.atan2(thisY - lastY, thisX - lastX), Math.atan2(nextY - thisY, nextX - thisX), 
 					distances[i - 1]);
 			
@@ -104,7 +113,7 @@ public class AutoPath {
 			xEnd = (1 - percentEnd) * thisX + percentEnd * nextX;
 			yEnd = (1 - percentEnd) * thisY + percentEnd * nextY;
 			
-			input[2 * i] = AutoPath.getPointsForBezier(100, new Pair(xStart, yStart), new Pair(xEnd, yEnd));
+			input[2 * i] = AutoPath.getPointsForBezier(200, new Pair(xStart, yStart), new Pair(xEnd, yEnd));
 
 		}
 		
@@ -154,13 +163,13 @@ public class AutoPath {
 		}
 		return points[points.length - 1];
 	}
-	
-	public double getHeadingAtDist(double dist) {
-		return Math.toDegrees(getPointAtDist(dist).heading);
-	}
-	
+
 	public double getCurvatureAtDist(double dist) {
 		return getPointAtDist(dist).curvature;
+	}
+	
+	public double getHeadingAtDist(double dist) {
+		return getPointAtDist(dist).heading;
 	}
 	
 	public double getPathLength() {
@@ -208,9 +217,10 @@ public class AutoPath {
 
 	}
 	
-	public static Pair[] getPointsForClothoid(int numPoints, Pair vertex, double startAngle, double endAngle, double dMax) {
-		Pair[] unitClothoid = getPointsForUnitClothoid(numPoints);
-		
+	public static Pair[] getPointsForClothoid(Pair vertex, double startAngle, double endAngle, double dMax) {
+		if (unitClothoid == null) {
+			unitClothoid = getPointsForUnitClothoid(2000);
+		}
 		// calculate angle delta
 		double deltaAngle = endAngle - startAngle;
 		while (Math.abs(deltaAngle) > Math.PI) {
@@ -222,7 +232,7 @@ public class AutoPath {
 		}
 		
 		// dMax for unit clothoid of specified angle
-		int pointsUsed = (int) (numPoints * Math.sqrt(Math.abs(deltaAngle) / Math.PI)); // half if angle is 90 degrees
+		int pointsUsed = (int) (unitClothoid.length * Math.sqrt(Math.abs(deltaAngle) / Math.PI)); // half if angle is 90 degrees
 		Pair midpoint = unitClothoid[pointsUsed];
 		double dUnit = midpoint.x + midpoint.y * Math.tan(Math.abs(deltaAngle) / 2);
 	
