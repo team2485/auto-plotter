@@ -47,7 +47,9 @@ import org.team2485.AutoPath.Pair;
 
 @SuppressWarnings("serial")
 public class TestPanel extends JPanel implements KeyListener, MouseListener {
-
+	private static enum Action {
+		NONE, TRANSLATE, ROTATE, CONTROL,
+	}
 	private JFrame frame;
 	private boolean usingBeziers;
 	private BufferedImage robot, fieldBW, fieldColor;
@@ -56,6 +58,8 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 	private boolean isInLen;
 	private boolean isRotate = true;
 	private ArrayList<Point> spline;
+	private ArrayList<ArrayList<Point>> oldSplines;
+
 	private boolean hidden;
 	private File file = null;
 	private JFileChooser fc = new JFileChooser();
@@ -64,6 +68,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 	private boolean animating = false;
 	private double dist = 0;
 	private double speed = 100;
+	private Action lastAction = Action.NONE;
 	private AutoPath path;
 
 	public TestPanel() throws IOException {
@@ -79,6 +84,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		}, 0, 5);
 
 		frame = new JFrame();
+		setFocusTraversalKeysEnabled(false);
 
 		ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
 		fieldBW = ImageIO.read(classLoader.getResourceAsStream("drawing.png"));
@@ -99,6 +105,9 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		JMenuBar menu = new JMenuBar();
 		JMenu fileMenu = new JMenu("File");
 		menu.add(fileMenu);
+		
+		JMenu editMenu = new JMenu("Edit");
+		menu.add(editMenu);
 
 		JMenu helpMenu = new JMenu("Help");
 		menu.add(helpMenu);
@@ -146,7 +155,18 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			export();
 		});
 		fileMenu.add(exportMenu);
+		
+		JMenuItem undoMenu = new JMenuItem("Undo");
+		undoMenu.addActionListener((ActionEvent e) -> {
+			undo();
+			repaint();
+		});
+		editMenu.add(undoMenu);
 		this.add(menu);
+		
+		
+		
+		
 
 
 
@@ -160,12 +180,29 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		spline.add(new Point(300, 100));
 		spline.add(new Point(300, 300));
 		spline.get(1).dMax = 100;
+		oldSplines = new ArrayList<>();
 
 
 
 		addMouseListener(this);
 		frame.addKeyListener(this);
+		frame.setFocusTraversalKeysEnabled(false);
 
+	}
+	
+	private void addMove() {
+		// clone spline
+		ArrayList<Point> splineCopy = new ArrayList<>();
+		for (int i = 0; i < spline.size(); i++) {
+			splineCopy.add(new Point(0, 0));
+			splineCopy.get(i).angle = spline.get(i).angle;
+			splineCopy.get(i).dMax = spline.get(i).dMax;
+			splineCopy.get(i).outLen = spline.get(i).outLen;
+			splineCopy.get(i).inLen = spline.get(i).inLen;
+			splineCopy.get(i).x = spline.get(i).x;
+			splineCopy.get(i).y = spline.get(i).y;
+		}
+		oldSplines.add(splineCopy);
 	}
 
 	private void updatePath() {
@@ -400,14 +437,14 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 
 	}
 
-	private static void drawPairs(Pair[] pairs, Graphics2D g2d) {
-		int[] x = new int[pairs.length], y = new int[pairs.length];
-		for (int i = 0; i < pairs.length; i++) {
-			x[i] = (int) pairs[i].getX();
-			y[i] = (int) pairs[i].getY();
-		}
-		g2d.drawPolyline(x, y, pairs.length);
-	}
+//	private static void drawPairs(Pair[] pairs, Graphics2D g2d) {
+//		int[] x = new int[pairs.length], y = new int[pairs.length];
+//		for (int i = 0; i < pairs.length; i++) {
+//			x[i] = (int) pairs[i].getX();
+//			y[i] = (int) pairs[i].getY();
+//		}
+//		g2d.drawPolyline(x, y, pairs.length);
+//	}
 
 	public static void main(String[] args) {
 		try {
@@ -453,7 +490,10 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		} else if (keyCode == KeyEvent.VK_B) {
 			usingBeziers = !usingBeziers;
 
-		}
+		} else if (keyCode == KeyEvent.VK_Z && e.isControlDown()) {
+			undo();
+			repaint();
+		} 
 
 		if (id < 0) {
 			repaint();
@@ -462,6 +502,10 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 
 		if (keyCode == KeyEvent.VK_UP) {
 			if (isRotate) {
+				if (lastAction != Action.CONTROL) {
+					lastAction = Action.CONTROL;
+					addMove();
+				}
 				if (usingBeziers) {
 					if (isInLen) {
 						spline.get(id).inLen--;
@@ -472,10 +516,18 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 					spline.get(id).dMax++;
 				}
 			} else {
+				if (lastAction != Action.TRANSLATE) {
+					lastAction = Action.TRANSLATE;
+					addMove();
+				}
 				spline.get(id).y--;
 			}
 		} else if (keyCode == KeyEvent.VK_DOWN) {
 			if (isRotate) {
+				if (lastAction != Action.CONTROL) {
+					lastAction = Action.CONTROL;
+					addMove();
+				}
 				if (usingBeziers) {
 					if (isInLen) {
 						spline.get(id).inLen++;
@@ -486,32 +538,61 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 					spline.get(id).dMax--;
 				}
 			} else {
+				if (lastAction != Action.TRANSLATE) {
+					lastAction = Action.TRANSLATE;
+					addMove();
+				}
 				spline.get(id).y++;
 			}
 
 		} else if (keyCode == KeyEvent.VK_LEFT) {
 			if (isRotate) {
+				if (lastAction != Action.ROTATE) {
+					lastAction = Action.ROTATE;
+					addMove();
+				}
 				spline.get(id).angle++;
 			} else {
+				if (lastAction != Action.TRANSLATE) {
+					lastAction = Action.TRANSLATE;
+					addMove();
+				}
 				spline.get(id).x--;
 			}
 		} else if (keyCode == KeyEvent.VK_RIGHT) {
 			if (isRotate) {
+				if (lastAction != Action.ROTATE) {
+					lastAction = Action.ROTATE;
+					addMove();
+				}
 				spline.get(id).angle--;
 			} else {
+				if (lastAction != Action.TRANSLATE) {
+					lastAction = Action.TRANSLATE;
+					addMove();
+				}
 				spline.get(id).x++;
 			}
 		} else if (keyCode == KeyEvent.VK_H) {
 			hidden = !hidden;
 		} else if (keyCode == KeyEvent.VK_SPACE) {
 			isInLen = !isInLen;
-		} else if (keyCode == KeyEvent.VK_TAB) {
-			id++; 
-			if (id >= spline.size()) {
-				id -= spline.size();
-			}
-		}  else if (keyCode == KeyEvent.VK_ESCAPE) {
+		} else if (keyCode == KeyEvent.VK_ESCAPE) {
 			id = -1;
+			lastAction = Action.NONE;
+		} else if (keyCode == KeyEvent.VK_TAB) {
+			System.out.println("tab");
+			lastAction = Action.NONE;
+			addMove();
+			if (e.isShiftDown() && id > 0) {
+				Point p = spline.remove(id);
+				id--;
+				spline.add(id, p);
+			} else if (!e.isShiftDown() && id < spline.size() - 1) {
+				Point p = spline.remove(id);
+				id++;
+				spline.add(id, p);
+			}
 		}
 
 		repaint();
@@ -536,8 +617,12 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			JMenuItem menuItem = new JMenuItem(id < 0 ? "New" : "Delete");
 			menuItem.addActionListener((ActionEvent ev) -> {
 				if (id < 0) {
+					lastAction = Action.NONE;
+					addMove();
 					newPoint(e.getX(), e.getY());
 				} else { 
+					lastAction = Action.NONE;
+					addMove();
 					delete(id);
 				}
 
@@ -546,7 +631,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 			menu.show(e.getComponent(), e.getX(), e.getY());
 		} else if (id < 0) {
 			for (int i = 0; i < spline.size(); i++) {
-				if (Math.hypot(spline.get(i).x - e.getX(), spline.get(i).y - e.getY()) < robotWidth / 2) {
+				if (Math.hypot(spline.get(i).x - e.getX(), spline.get(i).y - e.getY()) < 10) {
 					id = i;
 					if (id == 0) {
 						isInLen = false;
@@ -557,6 +642,8 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 				}
 			}
 		} else {
+			addMove();
+			lastAction = Action.NONE;
 			spline.get(id).x = e.getX();
 			spline.get(id).y = e.getY();
 		}
@@ -618,6 +705,7 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 				p.dMax = Double.parseDouble(coords[5]);
 				spline.add(p);
 			}
+			oldSplines = new ArrayList<>();
 			reader.close();
 		}
 		repaint();
@@ -694,6 +782,22 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 		repaint();
 	}
 
+	private void undo() {
+		if (oldSplines.size() > 0) {
+			ArrayList<Point> oldSpline = oldSplines.remove(oldSplines.size() - 1);
+			ArrayList<Point> splineCopy = new ArrayList<>();
+			for (int i = 0; i < oldSpline.size(); i++) {
+				splineCopy.add(new Point(0, 0));
+				splineCopy.get(i).angle = oldSpline.get(i).angle;
+				splineCopy.get(i).dMax = oldSpline.get(i).dMax;
+				splineCopy.get(i).outLen = oldSpline.get(i).outLen;
+				splineCopy.get(i).inLen = oldSpline.get(i).inLen;
+				splineCopy.get(i).x = oldSpline.get(i).x;
+				splineCopy.get(i).y = oldSpline.get(i).y;
+			}
+			spline = splineCopy;
+		}
+	}
 
 	private void viewControls() {
 		JOptionPane.showMessageDialog(null, "Click on image of robot to select it\n" + 
@@ -708,7 +812,9 @@ public class TestPanel extends JPanel implements KeyListener, MouseListener {
 				"B - switch beziers vs clothoids\n" + 
 				"E - switch color of field\n" + 
 				"A - animate path\n" +
-				"H - hide robot images (only show path)\n"
+				"H - hide robot images (only show path)\n" + 
+				"Z - undo\n" + 
+				"Tab / Shift + Tab - reorder points"
 				);
 	}
 
